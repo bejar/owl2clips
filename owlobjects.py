@@ -15,7 +15,7 @@ owlobjects
 
 :Date:  08/05/2020
 """
-from rdflib import RDFS, RDF, OWL, XSD
+from rdflib import RDFS, RDF, OWL, XSD, URIRef, Literal
 
 __author__ = 'bejar'
 
@@ -85,7 +85,7 @@ class owlclass(owlobject):
         :return:
         """
         comment = self.attributes[RDFS.comment].strip("\n").strip(" ").strip("\n")
-        s = f'(defclass {self.name} "{comment}"\n'
+        s = f'(defclass {self.name} "{comment}"\n' if comment != '' else f'(defclass {self.name}\n'
         if self.parent is None:
             s += '    (is-a USER)\n'
         else:
@@ -117,6 +117,7 @@ class owlprop(owlobject):
         return s
 
     def toCLIPS(self):
+        comment = self.attributes[RDFS.comment].strip("\n").strip(" ").strip("\n")
         s = f'(multislot {self.name}'
         if self.attributes[RDF.type] == OWL.DatatypeProperty:
             if self.attributes[RDFS.range] in datatypes:
@@ -125,6 +126,47 @@ class owlprop(owlobject):
                 s += ' (type SYMBOL)'
         else:
             s += ' (type INSTANCE)'
-        return s + ')\n'
+        return  f';;; {comment}\n    ' + s + ')\n' if (comment != '') else  s + ')\n'
+
+class owlinstance(owlobject):
+
+    def __init__(self, uriref):
+        """
+        Initialize the class
+        """
+        super(owlinstance, self).__init__(uriref)
+        self.iclass= None
+        self.properties = {}
+
+    def get_info_from_graph(self, graph, cdict):
+        iclass = graph.objects(self.uriref, RDF.type)
+        for c in iclass:
+            if c != OWL.NamedIndividual:
+                self.iclass = self.chop(c)
+
+        if self.iclass is None:
+            raise NameError(f"Instance [{self.name}] is not assigned to a class")
+
+        jclass = cdict[self.iclass]
+        for p in jclass.properties:
+            self.properties[p.name] = [v for v in graph.objects(self.uriref, p.uriref)]
+
+
+    def toCLIPS(self):
+        level = '    '
+        comment = self.attributes[RDFS.comment].strip("\n").strip(" ").strip("\n")
+
+        s = f"({self.name} of {self.chop(self.iclass)}"
+        pr = '\n'
+        for p in self.properties:
+            if len(self.properties[p]) == 1:
+                val = self.properties[p][0]
+                if isinstance(val, URIRef):
+                    pr += f'{level}{level} ({self.chop(p)} {self.chop(val)})\n'
+                if isinstance(val, Literal):
+                    if val.datatype == XSD.integer:
+                        pr += f'{level}{level} ({self.chop(p)} {val})\n'
+
+        return f'{level};;; {comment}\n    ' + s + pr + f'{level})\n' if (comment != '') else level + s + pr + f'{level})\n'
 
 

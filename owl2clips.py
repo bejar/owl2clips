@@ -21,7 +21,7 @@ __author__ = 'bejar'
 from rdflib.util import find_roots, get_tree
 from rdflib import Graph, URIRef, Literal
 from rdflib import RDFS, RDF, OWL
-from owlobjects import owlclass, owlprop
+from owlobjects import owlclass, owlprop, owlinstance
 
 def tree_to_list(tree):
     """
@@ -80,17 +80,51 @@ def build_hierarchy(g, tree):
 
     return [node, desc]
 
-def generate_clips(hierarchy):
+def get_individuals(g, cdict):
+    """
+    Obtains all instances
+    :return:
+    """
+    # get all the individuals
+    r = g.subjects(RDF.type,OWL.NamedIndividual)
+
+    lins = []
+    for i in r:
+        ins = owlinstance(i)
+        ins.get_attributes_from_graph(g)
+        ins.get_info_from_graph(g, cdict)
+        lins.append(ins)
+
+    return lins
+
+def generate_classes_clips(hierarchy):
     print(hierarchy[0].toCLIPS())
+    lclass = []
     for h in hierarchy[1]:
-        generate_clips(h)
+        lclass.extend(generate_classes_clips(h))
+    lclass.extend([hierarchy[0]])
+    return lclass
+
+def generate_individuals_clips(individuals):
+    """
+    Generates all the individuals
+    :param individuals:
+    :return:
+    """
+
+    print("(definstances instances\n")
+    for i in individuals:
+        print(i.toCLIPS())
+
+    print(")\n")
+
 
 if __name__ == '__main__':
     g = Graph()
 
     # Carga el grafo RDF desde el fichero
-
-    g.parse("proton-top.ttl", format='turtle')
+    g.parse("CLIPSTest.owl", format='turtle')
+    #g.parse("proton-top.ttl", format='turtle')
    # g.parse("fipa-acl-new.owl", format='xml')
    #  g.parse("TravelOntology.owl", format='xml')
 
@@ -99,8 +133,16 @@ if __name__ == '__main__':
     if hierarchy[0][0] == OWL.Thing :
         hierarchy = hierarchy[0][1]
 
+    classes_dict = {}
     for h in hierarchy:
         ch = build_hierarchy(g, h)
-        generate_clips(ch)
+        lclass = generate_classes_clips(ch)
+        for c in lclass:
+            classes_dict[c.name] = c
+
+    individuals = get_individuals(g, classes_dict)
+
+    generate_individuals_clips(individuals)
+
 
 
