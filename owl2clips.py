@@ -71,6 +71,7 @@ def build_hierarchy(g, tree):
     :return:
     """
     root = tree[0]
+    print(root)
     node = owlclass(root)
     node.get_attributes_from_graph(g)
     node.get_properties_from_graph(g)
@@ -123,8 +124,10 @@ if __name__ == '__main__':
     g = Graph()
 
     # Carga el grafo RDF desde el fichero
-    g.parse("CLIPSTest.owl", format='turtle')
-    #g.parse("proton-top.ttl", format='turtle')
+    # g.parse("CLIPSTest.owl", format='turtle')
+    g.parse("practica.ttl", format='turtle')
+    # g.parse("pizza2.ttl", format='turtle')
+    # g.parse("proton-top.ttl", format='turtle')
    # g.parse("fipa-acl-new.owl", format='xml')
    #  g.parse("TravelOntology.owl", format='xml')
 
@@ -140,9 +143,9 @@ if __name__ == '__main__':
         for c in lclass:
             classes_dict[c.name] = c
 
-    individuals = get_individuals(g, classes_dict)
+    # individuals = get_individuals(g, classes_dict)
 
-    generate_individuals_clips(individuals)
+    # generate_individuals_clips(individuals)
 
 
 

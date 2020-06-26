@@ -139,33 +139,45 @@ class owlinstance(owlobject):
         self.properties = {}
 
     def get_info_from_graph(self, graph, cdict):
+        """
+        Extract from the graph the properties for the instance and record the information from the class of the instance
+        :param graph:
+        :param cdict:
+        :return:
+        """
+
         iclass = graph.objects(self.uriref, RDF.type)
+        # Selects the class for the instance skiping OWL.NamedIndividual
         for c in iclass:
             if c != OWL.NamedIndividual:
                 self.iclass = self.chop(c)
 
+        # If individual has no class something is wrong
         if self.iclass is None:
             raise NameError(f"Instance [{self.name}] is not assigned to a class")
 
         jclass = cdict[self.iclass]
         for p in jclass.properties:
-            self.properties[p.name] = [v for v in graph.objects(self.uriref, p.uriref)]
+            self.properties[p.name] = ([v for v in graph.objects(self.uriref, p.uriref)][0], p.attributes[RDFS.range])
 
 
     def toCLIPS(self):
+        """
+        Generate the CLIPS representation for an instacd
+        :return:
+        """
         level = '    '
         comment = self.attributes[RDFS.comment].strip("\n").strip(" ").strip("\n")
 
         s = f"({self.name} of {self.chop(self.iclass)}"
         pr = '\n'
         for p in self.properties:
-            if len(self.properties[p]) == 1:
-                val = self.properties[p][0]
-                if isinstance(val, URIRef):
-                    pr += f'{level}{level} ({self.chop(p)} {self.chop(val)})\n'
-                if isinstance(val, Literal):
-                    if val.datatype == XSD.integer:
-                        pr += f'{level}{level} ({self.chop(p)} {val})\n'
+            val = self.properties[p][0]
+            if isinstance(val, URIRef):
+                pr += f'{level}{level} ({self.chop(p)} [{self.chop(val)}])\n'
+            if isinstance(val, Literal):
+                if val.datatype == XSD.integer:
+                    pr += f'{level}{level} ({self.chop(p)} {val})\n'
 
         return f'{level};;; {comment}\n    ' + s + pr + f'{level})\n' if (comment != '') else level + s + pr + f'{level})\n'
 
