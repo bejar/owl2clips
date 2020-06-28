@@ -20,8 +20,9 @@ __author__ = 'bejar'
 
 from rdflib.util import find_roots, get_tree
 from rdflib import Graph, URIRef, Literal
-from rdflib import RDFS, RDF, OWL
+from rdflib import RDFS, RDF, OWL, URIRef
 from owlobjects import owlclass, owlprop, owlinstance
+import argparse
 
 def tree_to_list(tree):
     """
@@ -59,7 +60,7 @@ def get_class_hierarchy(g):
             SCOset.add(l)
 
     for c in r:
-        if c not in SCOset:
+        if (type(c) == URIRef) and (c not in SCOset):
             roots.append((c, []))
 
     return roots
@@ -71,7 +72,6 @@ def build_hierarchy(g, tree):
     :return:
     """
     root = tree[0]
-    print(root)
     node = owlclass(root)
     node.get_attributes_from_graph(g)
     node.get_properties_from_graph(g)
@@ -80,6 +80,7 @@ def build_hierarchy(g, tree):
         d[0].parent = node
 
     return [node, desc]
+
 
 def get_individuals(g, cdict):
     """
@@ -98,30 +99,45 @@ def get_individuals(g, cdict):
 
     return lins
 
-def generate_classes_clips(hierarchy):
-    print(hierarchy[0].toCLIPS())
+def generate_classes_clips(hierarchy, f):
+    """
+    Generates and writes the classe to a file using CLIPS syntaz
+    :param hierarchy:
+    :param f:
+    :return:
+    """
+
+    f.write(hierarchy[0].toCLIPS())
+    f.write("\n")
     lclass = []
     for h in hierarchy[1]:
         lclass.extend(generate_classes_clips(h))
     lclass.extend([hierarchy[0]])
     return lclass
 
-def generate_individuals_clips(individuals):
+def generate_individuals_clips(individuals, f):
     """
-    Generates all the individuals
+    Generates all the individuals and writes them to a file in CLIPS syntax
     :param individuals:
     :return:
     """
-
-    print("(definstances instances\n")
+    f.write("(definstances instances\n")
     for i in individuals:
-        print(i.toCLIPS())
-
-    print(")\n")
+        f.write(i.toCLIPS())
+        f.write("\n")
+    f.write(")\n")
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i', default='practica.ttl',  help='Input file')
+    parser.add_argument('-o', default='practica.clp',  help='Output file')
+    parser.add_argument('-f', default='turtle',   choices=['xml', 'turtle'], help='File format')
+
+    args = parser.parse_args()
+
     g = Graph()
+    g.parse(args.i, format=args.f)
 
     # Carga el grafo RDF desde el fichero
     # g.parse("CLIPSTest.owl", format='turtle')
@@ -130,6 +146,7 @@ if __name__ == '__main__':
     # g.parse("proton-top.ttl", format='turtle')
    # g.parse("fipa-acl-new.owl", format='xml')
    #  g.parse("TravelOntology.owl", format='xml')
+    f = open(args.o, 'w')
 
     hierarchy = get_class_hierarchy(g)
 
@@ -139,13 +156,15 @@ if __name__ == '__main__':
     classes_dict = {}
     for h in hierarchy:
         ch = build_hierarchy(g, h)
-        lclass = generate_classes_clips(ch)
+        lclass = generate_classes_clips(ch, f)
         for c in lclass:
             classes_dict[c.name] = c
 
-    # individuals = get_individuals(g, classes_dict)
+    individuals = get_individuals(g, classes_dict)
 
-    # generate_individuals_clips(individuals)
+    generate_individuals_clips(individuals,f)
+
+    f.close()
 
 
 

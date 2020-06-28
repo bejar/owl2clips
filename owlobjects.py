@@ -15,15 +15,16 @@ owlobjects
 
 :Date:  08/05/2020
 """
-from rdflib import RDFS, RDF, OWL, XSD, URIRef, Literal
+from rdflib import RDFS, RDF, OWL, XSD, URIRef, Literal, BNode
 
 __author__ = 'bejar'
 
-datatypes = {XSD.string: 'STRING)',
+datatypes = {XSD.string: 'STRING',
              XSD.integer: 'INTEGER',
              XSD.int: 'INTEGER',
              XSD.float: 'FLOAT',
              XSD.double: 'FLOAT'}
+
 
 class owlobject:
     def __init__(self, uriref):
@@ -32,7 +33,7 @@ class owlobject:
         """
         self.uriref = uriref
         self.name = self.chop(uriref)
-        self.attributes = {RDFS.comment: '', RDFS.label:''}
+        self.attributes = {RDFS.comment: '', RDFS.label: ''}
 
     def get_attributes_from_graph(self, graph):
         for predicate in self.attributes:
@@ -47,6 +48,7 @@ class owlobject:
         else:
             return uriref
 
+
 class owlclass(owlobject):
     """
     Class for representing the data for an OWL class
@@ -57,25 +59,53 @@ class owlclass(owlobject):
         Initialize the class
         """
         super(owlclass, self).__init__(uriref)
-        self.properties = []
+        self.properties = {}
         self.parent = None
 
     def get_properties_from_graph(self, graph):
         # Get all properties that have this class as domain
         props = graph.subjects(RDFS.domain, self.uriref)
-
+        # Properties with domain equal to the class URI
         for p in props:
             pr = owlprop(p)
             pr.get_attributes_from_graph(graph)
-            self.properties.append(pr)
+            self.properties[pr.name] = pr
+
+        # Properties that are in the union of a domain
+        props = graph.subject_objects(RDFS.domain)
+        for s, o in props:
+            if type(o) == BNode:
+                for d in graph.objects(o, OWL.unionOf):
+                    uof = self._get_union(d, graph)
+            if len(uof) != 0:
+                if self.uriref in uof:
+                    pr = owlprop(s)
+                    if pr.name not in self.properties:
+                        pr.get_attributes_from_graph(graph)
+                        self.properties[pr.name] = pr
+
+    def _get_union(self, uri, graph):
+        """
+        Get elements that compose a unionGf
+        Follow the links of the list
+        :param graph:
+        :return:
+        """
+        dom = []
+        rest = uri
+        while rest != RDF.nil:
+            first = [v for v in graph.objects(rest, RDF.first)][0]
+            dom.append(first)
+            rest = [v for v in graph.objects(rest, RDF.rest)][0]
+        return dom
 
     def __repr__(self):
         s = f'N= {self.name} '
         for a in self.attributes:
-            s+= f'{self.chop(a)} = {self.attributes[a]}'
+            s += f'{self.chop(a)} = {self.attributes[a]}'
 
         for p in self.properties:
-            s+= f'\n PR= {p.__repr__()} '
+            s += f'\n PR= {p.__repr__()} '
 
         return s
 
@@ -90,9 +120,9 @@ class owlclass(owlobject):
             s += '    (is-a USER)\n'
         else:
             s += f'    (is-a {self.parent.name})\n'
-        s+= '    (role concrete)\n    (pattern-match reactive)\n'
+        s += '    (role concrete)\n    (pattern-match reactive)\n'
         for p in self.properties:
-            s += '    ' + p.toCLIPS()
+            s += '    ' + self.properties[p].toCLIPS()
 
         s += ')\n'
         return s
@@ -102,6 +132,7 @@ class owlprop(owlobject):
     """
     class for OWL properties
     """
+
     def __init__(self, uriref):
         """
         Initialize the class
@@ -119,14 +150,15 @@ class owlprop(owlobject):
     def toCLIPS(self):
         comment = self.attributes[RDFS.comment].strip("\n").strip(" ").strip("\n")
         s = f'(multislot {self.name}'
-        if self.attributes[RDF.type] == OWL.DatatypeProperty:
+        if self.attributes[RDF.type] in [OWL.DatatypeProperty, OWL.FunctionalProperty]:
             if self.attributes[RDFS.range] in datatypes:
                 s += f' (type {datatypes[self.attributes[RDFS.range]]})'
             else:
                 s += ' (type SYMBOL)'
         else:
             s += ' (type INSTANCE)'
-        return  f';;; {comment}\n    ' + s + ')\n' if (comment != '') else  s + ')\n'
+        return f';;; {comment}\n    ' + s + ')\n' if (comment != '') else s + ')\n'
+
 
 class owlinstance(owlobject):
 
@@ -135,7 +167,7 @@ class owlinstance(owlobject):
         Initialize the class
         """
         super(owlinstance, self).__init__(uriref)
-        self.iclass= None
+        self.iclass = None
         self.properties = {}
 
     def get_info_from_graph(self, graph, cdict):
@@ -158,8 +190,10 @@ class owlinstance(owlobject):
 
         jclass = cdict[self.iclass]
         for p in jclass.properties:
-            self.properties[p.name] = ([v for v in graph.objects(self.uriref, p.uriref)][0], p.attributes[RDFS.range])
-
+            prop = jclass.properties[p]
+            val = [v for v in graph.objects(self.uriref, prop.uriref)]
+            if len(val) != 0:
+                self.properties[prop.name] = (val[0], prop.attributes[RDFS.range])
 
     def toCLIPS(self):
         """
@@ -176,9 +210,10 @@ class owlinstance(owlobject):
             if isinstance(val, URIRef):
                 pr += f'{level}{level} ({self.chop(p)} [{self.chop(val)}])\n'
             if isinstance(val, Literal):
-                if val.datatype == XSD.integer:
+                if val.datatype in [XSD.integer, XSD.int]:
                     pr += f'{level}{level} ({self.chop(p)} {val})\n'
+                if val.datatype in [XSD.string]:
+                    pr += f'{level}{level} ({self.chop(p)} "{val}")\n'
 
-        return f'{level};;; {comment}\n    ' + s + pr + f'{level})\n' if (comment != '') else level + s + pr + f'{level})\n'
-
-
+        return f'{level};;; {comment}\n    ' + s + pr + f'{level})\n' if (
+                    comment != '') else level + s + pr + f'{level})\n'
