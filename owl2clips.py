@@ -130,7 +130,7 @@ def generate_individuals_clips(individuals, f):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', default='practica.ttl',  help='Input file')
+    parser.add_argument('-i', default='test_prot.owl',  help='Input file')
     parser.add_argument('-o', default='practica.clp',  help='Output file')
     parser.add_argument('-f', default='turtle',   choices=['xml', 'turtle'], help='File format')
 
@@ -141,7 +141,7 @@ if __name__ == '__main__':
 
     # Carga el grafo RDF desde el fichero
     # g.parse("CLIPSTest.owl", format='turtle')
-    g.parse("practica.ttl", format='turtle')
+    # g.parse("practica.ttl", format='turtle')
     # g.parse("pizza2.ttl", format='turtle')
     # g.parse("proton-top.ttl", format='turtle')
    # g.parse("fipa-acl-new.owl", format='xml')

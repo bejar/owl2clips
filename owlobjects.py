@@ -75,14 +75,15 @@ class owlclass(owlobject):
         props = graph.subject_objects(RDFS.domain)
         for s, o in props:
             if type(o) == BNode:
-                for d in graph.objects(o, OWL.unionOf):
-                    uof = self._get_union(d, graph)
-            if len(uof) != 0:
-                if self.uriref in uof:
-                    pr = owlprop(s)
-                    if pr.name not in self.properties:
-                        pr.get_attributes_from_graph(graph)
-                        self.properties[pr.name] = pr
+                d = graph.objects(o, OWL.unionOf)
+                if d is not None:
+                    uof = self._get_union(next(d), graph)
+                    if len(uof) != 0:
+                        if self.uriref in uof:
+                            pr = owlprop(s)
+                            if pr.name not in self.properties:
+                                pr.get_attributes_from_graph(graph)
+                                self.properties[pr.name] = pr
 
     def _get_union(self, uri, graph):
         """
@@ -210,10 +211,7 @@ class owlinstance(owlobject):
             if isinstance(val, URIRef):
                 pr += f'{level}{level} ({self.chop(p)} [{self.chop(val)}])\n'
             if isinstance(val, Literal):
-                if val.datatype in [XSD.integer, XSD.int]:
-                    pr += f'{level}{level} ({self.chop(p)} {val})\n'
-                if val.datatype in [XSD.string]:
-                    pr += f'{level}{level} ({self.chop(p)} "{val}")\n'
+                pr += f'{level}{level} ({self.chop(p)} "{val}")\n'
 
         return f'{level};;; {comment}\n    ' + s + pr + f'{level})\n' if (
                     comment != '') else level + s + pr + f'{level})\n'
